@@ -4,15 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.exceptions import ResponseValidationError
-from app_v2 import schemas
-from app_v2.routers import BorrowesRequests
-from app_v2.routers import BondsRequests
-from app_v2.routers import FoldersRequests
-from app_v2.routers import UpdatesRequests
-from app_v2.routers import ChatsRequests
-from app_v2.routers import AuthRequests
-from app_v2.routers import MiscRequests
-from app_v2.dependencies import update_db
+from app import schemas
 
 async def request_validation_error_exception_handler(request: Request, exc: RequestValidationError):
     print(exc)
@@ -41,7 +33,7 @@ async def base_error_exception_handler(request: Request, exc: Exception):
 async def lifespan( app: FastAPI ):
     yield
 
-RD = redis.Redis( host='localhost', port=6379, db=0, protocol=3, decode_responses=True )
+RD = redis.Redis( host='redis', port=6379, db=0, protocol=3, decode_responses=True )
 
 app = FastAPI(
     exception_handlers={
@@ -51,3 +43,30 @@ app = FastAPI(
     },
     lifespan=lifespan
 )
+
+@app.get('/check_data', response_model=schemas.DataSchema|None)
+async def read(phone: str):
+    address = await RD.get(f'address_{phone}')
+    if not address:
+        return None
+    return schemas.DataSchema(phone=phone,address=address)
+
+
+@app.post('/write_data', response_model=schemas.DataSchema)
+async def create_or_update(
+    data: schemas.DataSchema
+):
+    await RD.set(f'address_{data.phone}', data.address)
+    address = await RD.get(f'address_{data.phone}')
+    return schemas.DataSchema(phone=data.phone,address=address)
+
+# А нужен ли этот endpoint?
+# В случа редиса нет необходимости валидации наличия
+# таких простых данных для обновления
+@app.put('/write_data', response_model=schemas.DataSchema)
+async def update(
+    data: schemas.DataSchema
+):
+    await RD.set(f'address_{data.phone}', data.address)
+    address = await RD.get(f'address_{data.phone}')
+    return schemas.DataSchema(phone=data.phone,address=address)

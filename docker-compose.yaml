@@ -4,6 +4,8 @@ services:
             context: .
             dockerfile: ./Dockerfile
         container_name: app
+        depends_on:
+            - redis
         ports:
             - "80:80"
         networks:
